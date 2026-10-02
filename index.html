@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Κατακόρυφη βολή</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--fg:#1c2330;--mut:#6b7587;--bd:#dde1e8;--acc:#2563eb;
+        --c-v:#2563eb;--c-a:#7c3aed;--c-h:#059669;--c-u:#d97706;--c-k:#dc2626;--c-e:#334155}
+  @media (prefers-color-scheme:dark){:root{--bg:#10141b;--card:#181e28;--fg:#e6e9ef;--mut:#8f9aae;--bd:#2a3342;--acc:#5b9bff;
+        --c-v:#5b9bff;--c-a:#a78bfa;--c-h:#34d399;--c-u:#fbbf24;--c-k:#f87171;--c-e:#cbd5e1}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,sans-serif}
+  header{padding:14px 16px 0}h1{margin:0;font-size:20px}
+  header p{margin:4px 0 0;color:var(--mut);font-size:13px}
+  main{display:grid;gap:14px;padding:14px 16px 24px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));max-width:1300px;margin:auto}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px}
+  .card h2{margin:0 0 8px;font-size:14px;color:var(--mut);font-weight:600}
+  .wide{grid-column:1/-1}
+  form{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
+  label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+  input,select,button{font:inherit;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0}
+  button{background:var(--acc);color:#fff;border-color:var(--acc);cursor:pointer}
+  button.sec{background:transparent;color:var(--acc)}
+  #stats{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;margin-top:10px}
+  #stats b{color:var(--fg)}#stats span{color:var(--mut)}
+  canvas{width:100%;display:block}
+  #anim{height:300px}
+  .charts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .chart canvas{height:240px}
+  .tablewrap{max-height:340px;overflow:auto;border:1px solid var(--bd);border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:13px}
+  th,td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}
+  th{position:sticky;top:0;background:var(--card);cursor:pointer;user-select:none}
+  th.x{color:var(--acc);box-shadow:inset 0 -3px var(--acc)}
+  th.y{color:var(--c-h);box-shadow:inset 0 -3px var(--c-h)}
+  tr.mark td{background:color-mix(in srgb,var(--acc) 12%,transparent);font-weight:600}
+  .hint{font-size:12px;color:var(--mut);margin:0 0 8px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Κατακόρυφη βολή — προσομοίωση &amp; γραφικές παραστάσεις</h1>
+  <p>Θετική φορά: προς τα πάνω. υ = υ₀ − g·t, h = h₀ + υ₀·t − ½·g·t², U = m·g·h, K = ½·m·υ²</p>
+</header>
+<main>
+  <section class="card wide">
+    <h2>Δεδομένα</h2>
+    <form id="f">
+      <label>Κατεύθυνση βολής
+        <select id="dir">
+          <option value="up">Προς τα πάνω</option>
+          <option value="down">Προς τα κάτω</option>
+          <option value="free">Ελεύθερη πτώση (υ₀=0)</option>
+        </select></label>
+      <label>Αρχική ταχύτητα |υ₀| (m/s)<input id="v0" type="number" step="any" min="0" value="20"></label>
+      <label>Αρχικό ύψος h₀ (m)<input id="h0" type="number" step="any" min="0" value="10"></label>
+      <label>Επιτάχυνση g (m/s²)<input id="g" type="number" step="any" min="0.01" value="9.81"></label>
+      <label>Μάζα m (kg)<input id="m" type="number" step="any" min="0.001" value="1"></label>
+      <label>Βήμα χρόνου Δt (s)<input id="dt" type="number" step="any" min="0.001" value="0.25"></label>
+      <button type="submit">Υπολογισμός</button>
+    </form>
+    <div id="stats"></div>
+  </section>
+
+  <section class="card">
+    <h2>Κίνηση</h2>
+    <div class="row">
+      <button type="button" id="play">▶ Αναπαραγωγή</button>
+      <button type="button" id="reset" class="sec">⟲ Επαναφορά</button>
+    </div>
+    <canvas id="anim"></canvas>
+    <div id="live" style="font-size:13px;margin-top:6px;color:var(--mut)"></div>
+  </section>
+
+  <section class="card">
+    <h2>Πίνακας τιμών</h2>
+    <p class="hint">Κλικ στην κεφαλίδα στήλης: 1ο κλικ → άξονας Χ, 2ο κλικ σε άλλη → άξονας Υ της γραφικής «Από τον πίνακα».</p>
+    <div class="tablewrap"><table id="tbl"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="csv" class="sec">Λήψη CSV</button>
+    </div>
+  </section>
+
+  <section class="wide">
+    <div class="charts" id="charts"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const COLS = [
+  {k:"t", n:"t (s)",   d:3},
+  {k:"v", n:"υ (m/s)", d:3},
+  {k:"a", n:"a (m/s²)",d:3},
+  {k:"h", n:"h (m)",   d:3},
+  {k:"U", n:"U (J)",   d:3},
+  {k:"K", n:"K (J)",   d:3},
+  {k:"E", n:"U+K (J)", d:3},
+];
+const col = k => COLS.find(c => c.k === k);
+let P = null, rows = [], axX = "t", axY = "h", stage = 0, tAnim = 0, raf = 0;
+
+/* ---------- Φυσική ---------- */
+function compute(){
+  const dir = $("dir").value, g = +$("g").value, m = +$("m").value, dt = +$("dt").value, h0 = +$("h0").value;
+  let v0 = +$("v0").value;
+  if (dir === "down") v0 = -v0; else if (dir === "free") v0 = 0;
+  if (!(g > 0) || !(m > 0) || !(dt > 0) || h0 < 0) return alert("Έλεγξε τις τιμές (g, m, Δt > 0, h₀ ≥ 0).");
+  const tEnd = (v0 + Math.sqrt(v0*v0 + 2*g*h0)) / g;          // h = 0
+  if (!(tEnd > 0)) return alert("Το σώμα βρίσκεται ήδη στο έδαφος και δεν κινείται.");
+  const tApex = v0 > 0 ? v0 / g : null;
+  P = {v0, h0, g, m, dt, tEnd, tApex, hMax: tApex !== null ? h0 + v0*v0/(2*g) : h0};
+  const ts = [];
+  const n = Math.floor(tEnd / dt + 1e-9);
+  for (let i = 0; i <= n; i++) ts.push(+(i*dt).toFixed(10));
+  if (tEnd - ts[ts.length-1] > 1e-9) ts.push(tEnd);
+  if (tApex !== null && !ts.some(t => Math.abs(t - tApex) < 1e-9)) ts.push(tApex);
+  ts.sort((a,b) => a-b);
+  rows = ts.map(t => ({...state(t), apex: tApex !== null && Math.abs(t-tApex) < 1e-9, end: Math.abs(t-tEnd) < 1e-9}));
+  tAnim = 0; cancelAnimationFrame(raf); $("play").textContent = "▶ Αναπαραγωγή";
+  render();
+}
+function state(t){
+  const {v0,h0,g,m} = P;
+  const v = v0 - g*t, h = Math.max(0, h0 + v0*t - 0.5*g*t*t);
+  const U = m*g*h, K = 0.5*m*v*v;
+  return {t, v, a:-g, h, U, K, E:U+K};
+}
+
+/* ---------- Πίνακας ---------- */
+function renderTable(){
+  const t = $("tbl");
+  t.innerHTML = "<thead><tr>" + COLS.map(c =>
+    `<th data-k="${c.k}" class="${c.k===axX?"x":c.k===axY?"y":""}">${c.n}</th>`).join("") +
+    "</tr></thead><tbody>" + rows.map(r =>
+    `<tr class="${r.apex||r.end?"mark":""}">` + COLS.map(c => `<td>${r[c.k].toFixed(c.d)}</td>`).join("") +
+    `</tr>`).join("") + "</tbody>";
+  t.querySelectorAll("th").forEach(th => th.onclick = () => {
+    const k = th.dataset.k;
+    if (stage === 0){ axX = k; stage = 1; } else { if (k === axX) return; axY = k; stage = 0; }
+    renderTable(); drawCustom();
+  });
+}
+
+/* ---------- Γραφήματα ---------- */
+const CHARTS = [
+  {id:"cv", title:"υ = f(t)", x:"t", ys:[["v","var(--c-v)","υ"]]},
+  {id:"ca", title:"g = f(t)  (a = −g)", x:"t", ys:[["a","var(--c-a)","a"]]},
+  {id:"ch", title:"h = f(t)", x:"t", ys:[["h","var(--c-h)","h"]]},
+  {id:"cu", title:"Δυναμική ενέργεια U = f(t)", x:"t", ys:[["U","var(--c-u)","U"]]},
+  {id:"ck", title:"Κινητική ενέργεια K = f(t)", x:"t", ys:[["K","var(--c-k)","K"]]},
+  {id:"ce", title:"U, K και U+K = f(t)", x:"t", ys:[["U","var(--c-u)","U"],["K","var(--c-k)","K"],["E","var(--c-e)","U+K"]]},
+];
+function buildCharts(){
+  $("charts").innerHTML = CHARTS.map(c =>
+    `<div class="card chart"><h2>${c.title}</h2><canvas id="${c.id}"></canvas></div>`).join("") +
+    `<div class="card chart"><h2>Από τον πίνακα: <span id="ctitle"></span></h2><canvas id="cc"></canvas></div>`;
+}
+function css(v){ // επίλυση var(--x)
+  const m = /var\((--[^)]+)\)/.exec(v); return m ? getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() : v;
+}
+function nice(min, max, n){
+  if (max - min < 1e-12){ max = min + 1; }
+  const raw = (max - min) / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  const step = (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p;
+  return {lo: Math.floor(min/step)*step, hi: Math.ceil(max/step)*step, step};
+}
+function fmt(x){ return Math.abs(x) < 1e-9 ? "0" : +x.toPrecision(4) + ""; }
+function plot(canvas, xk, series){
+  const dpr = devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+  const fg = css("var(--fg)"), mut = css("var(--mut)"), bd = css("var(--bd)");
+  const M = {l:52, r:14, t:12, b:34};
+  const xs = rows.map(r => r[xk]);
+  const all = series.flatMap(s => rows.map(r => r[s.k]));
+  const X = nice(Math.min(...xs), Math.max(...xs), 6), Y = nice(Math.min(...all), Math.max(...all), 5);
+  const px = v => M.l + (v - X.lo)/(X.hi - X.lo) * (W - M.l - M.r);
+  const py = v => H - M.b - (v - Y.lo)/(Y.hi - Y.lo) * (H - M.t - M.b);
+  ctx.font = "11px system-ui"; ctx.lineWidth = 1;
+  ctx.fillStyle = mut; ctx.strokeStyle = bd;
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let y = Y.lo; y <= Y.hi + Y.step/2; y += Y.step){
+    ctx.beginPath(); ctx.moveTo(M.l, py(y)); ctx.lineTo(W-M.r, py(y)); ctx.stroke();
+    ctx.fillText(fmt(y), M.l-6, py(y));
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let x = X.lo; x <= X.hi + X.step/2; x += X.step){
+    ctx.beginPath(); ctx.moveTo(px(x), M.t); ctx.lineTo(px(x), H-M.b); ctx.stroke();
+    ctx.fillText(fmt(x), px(x), H-M.b+5);
+  }
+  ctx.strokeStyle = fg; ctx.lineWidth = 1.2; // άξονες στο 0
+  if (Y.lo < 0 && Y.hi > 0){ ctx.beginPath(); ctx.moveTo(M.l, py(0)); ctx.lineTo(W-M.r, py(0)); ctx.stroke(); }
+  if (X.lo < 0 && X.hi > 0){ ctx.beginPath(); ctx.moveTo(px(0), M.t); ctx.lineTo(px(0), H-M.b); ctx.stroke(); }
+  ctx.fillStyle = mut; ctx.textBaseline = "bottom"; ctx.textAlign = "right";
+  ctx.fillText(col(xk).n, W-M.r, H-1);
+  // καμπύλες: πυκνή δειγματοληψία από τη φυσική (λείες παραβολές), σημεία από τον πίνακα
+  series.forEach((s, i) => {
+    ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (xk === "t"){
+      const N = 240;
+      for (let j = 0; j <= N; j++){ const st = state(P.tEnd*j/N); j ? ctx.lineTo(px(st.t), py(st[s.k])) : ctx.moveTo(px(st.t), py(st[s.k])); }
+    } else rows.forEach((r, j) => j ? ctx.lineTo(px(r[xk]), py(r[s.k])) : ctx.moveTo(px(r[xk]), py(r[s.k])));
+    ctx.stroke();
+    rows.forEach(r => { ctx.beginPath(); ctx.arc(px(r[xk]), py(r[s.k]), 3, 0, 7); ctx.fill(); });
+    if (series.length > 1){ ctx.textAlign="left"; ctx.textBaseline="top"; ctx.fillText("● " + s.label, M.l + 8 + i*70, M.t + 2); }
+  });
+  canvas._geo = {px, py, xk, series, M, W, H};
+}
+function drawCharts(){
+  CHARTS.forEach(c => plot($(c.id), c.x, c.ys.map(([k,color,label]) => ({k,color:css(color),label}))));
+  drawCustom();
+}
+function drawCustom(){
+  $("ctitle").textContent = `${col(axY).n} = f(${col(axX).n})`;
+  plot($("cc"), axX, [{k:axY, color:css("var(--c-h)"), label:col(axY).n}]);
+}
+
+/* ---------- Κίνηση ---------- */
+function drawAnim(){
+  const cv = $("anim"), dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  const top = 20, bot = H - 24, hmax = P.hMax * 1.08 || 1;
+  const y = h => bot - h/hmax * (bot - top), cx = W/2;
+  ctx.fillStyle = css("var(--mut)"); ctx.font = "11px system-ui"; ctx.textAlign = "left";
+  const sc = nice(0, hmax, 5);
+  ctx.strokeStyle = css("var(--bd)");
+  for (let h = 0; h <= hmax; h += sc.step){ ctx.beginPath(); ctx.moveTo(40, y(h)); ctx.lineTo(W-10, y(h)); ctx.stroke(); ctx.fillText(fmt(h)+" m", 2, y(h)+4); }
+  ctx.fillStyle = css("var(--fg)"); ctx.fillRect(40, bot, W-50, 3);
+  // ίχνος
+  const dots = 60; ctx.fillStyle = css("var(--bd)");
+  for (let i = 0; i <= dots; i++){ const s = state(P.tEnd*i/dots); ctx.beginPath(); ctx.arc(cx + (i%2?-14:14), y(s.h), 1.6, 0, 7); ctx.fill(); }
+  const s = state(tAnim);
+  ctx.fillStyle = css("var(--c-k)"); ctx.beginPath(); ctx.arc(cx, y(s.h) - 9, 9, 0, 7); ctx.fill();
+  const arrow = Math.max(-60, Math.min(60, s.v * 2));       // βέλος ταχύτητας
+  if (Math.abs(arrow) > 2){
+    ctx.strokeStyle = css("var(--c-v)"); ctx.lineWidth = 2.5; ctx.beginPath();
+    ctx.moveTo(cx + 22, y(s.h)-9); ctx.lineTo(cx + 22, y(s.h)-9 - arrow); ctx.stroke();
+    const d = arrow > 0 ? 1 : -1; ctx.beginPath(); ctx.moveTo(cx+22, y(s.h)-9-arrow); ctx.lineTo(cx+17, y(s.h)-9-arrow+6*d); ctx.lineTo(cx+27, y(s.h)-9-arrow+6*d); ctx.closePath(); ctx.fillStyle = css("var(--c-v)"); ctx.fill();
+  }
+  $("live").textContent = `t=${s.t.toFixed(2)} s · υ=${s.v.toFixed(2)} m/s · h=${s.h.toFixed(2)} m · U=${s.U.toFixed(2)} J · K=${s.K.toFixed(2)} J`;
+}
+function loop(ts0){
+  let last = ts0;
+  const step = ts => {
+    tAnim = Math.min(P.tEnd, tAnim + (ts - last)/1000); last = ts; drawAnim();
+    if (tAnim < P.tEnd) raf = requestAnimationFrame(step); else $("play").textContent = "▶ Αναπαραγωγή";
+  };
+  raf = requestAnimationFrame(step);
+}
+$("play").onclick = () => {
+  if (!P) return;
+  if ($("play").textContent.startsWith("⏸")){ cancelAnimationFrame(raf); $("play").textContent = "▶ Αναπαραγωγή"; return; }
+  if (tAnim >= P.tEnd) tAnim = 0;
+  $("play").textContent = "⏸ Παύση"; loop(performance.now());
+};
+$("reset").onclick = () => { if (!P) return; cancelAnimationFrame(raf); tAnim = 0; $("play").textContent = "▶ Αναπαραγωγή"; drawAnim(); };
+
+/* ---------- Γενικά ---------- */
+function stats(){
+  const e = x => x.toFixed(3);
+  $("stats").innerHTML = [
+    ["Χρόνος πτήσης", e(P.tEnd)+" s"],
+    P.tApex !== null ? ["Χρόνος μέγ. ύψους", e(P.tApex)+" s"] : null,
+    ["Μέγιστο ύψος", e(P.hMax)+" m"],
+    ["Ταχύτητα πρόσκρουσης", e(Math.abs(P.v0 - P.g*P.tEnd))+" m/s"],
+    ["Ολική ενέργεια", e(rows[0].E)+" J"],
+  ].filter(Boolean).map(([a,b]) => `<div><span>${a}:</span> <b>${b}</b></div>`).join("");
+}
+function render(){ stats(); renderTable(); drawCharts(); drawAnim(); }
+$("f").onsubmit = e => { e.preventDefault(); compute(); };
+$("dir").onchange = () => { $("v0").disabled = $("dir").value === "free"; };
+$("csv").onclick = () => {
+  if (!rows.length) return;
+  const txt = COLS.map(c => c.n).join(";") + "\n" + rows.map(r => COLS.map(c => r[c.k].toFixed(c.d)).join(";")).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿"+txt], {type:"text/csv"}));
+  a.download = "katakoryfi_voli.csv"; a.click();
+};
+addEventListener("resize", () => { if (P){ drawCharts(); drawAnim(); } });
+matchMedia("(prefers-color-scheme:dark)").addEventListener("change", () => { if (P){ drawCharts(); drawAnim(); } });
+buildCharts(); compute();
+</script>
+</body>
+</html>
